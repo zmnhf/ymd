@@ -7,15 +7,16 @@ import pandas as pd
 from joblib import Parallel, delayed
 from youtube_dl import YoutubeDL
 from mutagen.mp4 import MP4
+import emoji
 
-OUTPUT_DIR = GENRE = FORMAT = FILENAME = JOBS = ""
+OUTPUT_DIR = GENRE = FORMAT = FILENAME = JOBS = RM_EMOJI = SV_THUMB = ""
 URLLIST = []
 CNT = 0
 ERROR_LIST = []
 
 def get_global():
 	"""変数の設定"""
-	global OUTPUT_DIR, GENRE, FORMAT, FILENAME, JOBS, URLLIST
+	global OUTPUT_DIR, GENRE, FORMAT, FILENAME, JOBS, RM_EMOJI, SV_THUMB, URLLIST
 
 	try:
 		ini = configparser.ConfigParser()
@@ -25,6 +26,8 @@ def get_global():
 		FORMAT = ini["env"]["format"]
 		FILENAME = ini["env"]["filename"]
 		JOBS = ini["env"]["n_jobs"]
+		RM_EMOJI = eval(ini["env"]["remove_emoji"])
+		SV_THUMB = eval(ini["env"]["save_thumbnail"])
 	except Exception as e:
 		print(f"{e}\nsettings.ini読み込みエラーだよ～項目すべて書いてある？")
 
@@ -44,9 +47,13 @@ def get_global():
 
 def fix_title(s):
 	"""ファイル名に使ってはいけない文字の削除"""
-	s =  re.sub(r"[\\/:.,;*?\"\'<>|\-]", "", s)
+	s = re.sub(r"[\\/:.,;*?\"\'<>|\-]", "", s)
 	s = s.replace(" ", "_")
 	return s
+
+def remove_emoji(s):
+	"""androidにコピーする時ファイル名に絵文字あると失敗する。MTPのバグ？"""
+	return "".join(i for i in s if i not in emoji.UNICODE_EMOJI)
 
 def stopwatch(func):
 	def wrapper(*args, **kwargs):
@@ -96,7 +103,10 @@ class SetChannel:
 				flag_l = [False for i in playlist_dict["entries"]]
 				date_l = [i.get("upload_date") for i in playlist_dict["entries"]]
 				id_l = [i.get("id") for i in playlist_dict["entries"]]
-				title_l = [fix_title(i.get("title")) for i in playlist_dict["entries"]]
+				if RM_EMOJI == True:
+					title_l = [remove_emoji(fix_title(i.get("title"))) for i in playlist_dict["entries"]]
+				else:
+					title_l = [fix_title(i.get("title")) for i in playlist_dict["entries"]]
 				newcsv_df = pd.DataFrame(data={"flag": flag_l, "date":date_l, "id":id_l, "title":title_l})
 				return newcsv_df
 
@@ -152,13 +162,14 @@ class SetVideo:
 		audio["\xa9alb"] = [self.artist] #アルバム
 		audio["\xa9gen"] = [GENRE] #ジャンル
 		audio["trkn"] = [(self.trkn, 0)] #トラックナンバー
-
 		#youtube_dlでは何故かアルバムアート設定できなかったのでmutagenで設定
 		with open(self.path_m4a.replace(".m4a", ".jpg"), "rb") as c:
 			c = c.read()
 			audio["covr"] = [c]
-
 		audio.save()
+
+	def rm_thumb(self):
+		os.remove(str(self.path_m4a).replace(".m4a", ".jpg"))
 
 @stopwatch
 def main():
@@ -175,6 +186,8 @@ def instantize(i):
 	"""インスタンス化してDL開始、実質のmain()"""
 	global CNT, ERROR_LIST
 	artist, playlists = i[0], i[1:]
+	if len(playlists) == 0:
+		return
 	Channel = SetChannel(artist, playlists)
 	for i, row in Channel.csv_df.iterrows():
 		if row["flag"] == True:
@@ -186,6 +199,8 @@ def instantize(i):
 				Video.start_dl()
 				Channel.csv_df.loc[[i], ["flag"]] = True
 				CNT += 1
+				if SV_THUMB == False:
+					Video.rm_thumb()
 			except Exception as e:
 				Channel.csv_df.loc[[i], ["flag"]] = False
 				error_msg = f"{Video.artist, Video.id, Video.filename}のDLに失敗しています"
@@ -198,3 +213,4 @@ def test():
 
 if __name__ == "__main__":
 	main()
+#	test()
