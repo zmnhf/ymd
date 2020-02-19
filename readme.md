@@ -1,10 +1,6 @@
 # Youtube-dlでMusicをDLするやつ
 
-未DL動画のみDLを行い、タグづけをします
-
-youtube-dlのdownload_archiveオプションを使わずわざわざlist.csvを作ってる理由はトラック番号を動画投稿日順にしたかったからです
-
-というかほぼそのために作りました
+素のyoutube-dlでは音声ファイルへのタグ付けが中途半端にしかできない、またトラック番号が動画投稿順にならないという短所があったので自分用に書きました
 
 ただDL後に元のプレイリストの中身変わるとトラック番号崩れたり崩れなかったりしますめんどいのでいまのとこ対応するつもりないです
 
@@ -54,13 +50,13 @@ winキーおしてcmdって打つとコマンドプロンプトが開くので、その黒い画面でpyってうっ
 
 ●pythonをインストールします
 
-ここから　https://www.python.org/downloads/　インストーラをDL
+ここから https://www.python.org/downloads/ インストーラをDL
 
 バージョンは一番新しいやつでいいんじゃないでしょうか
 
 インストール終わったら念の為再起動してコマンドプロンプトを起動し、
 
-py -m pip install pandas joblib youtube-dl mutagen
+py -m pip install pandas joblib youtube-dl mutagen emoji
 
 を実行します、なんかsuccess的な文言見えたら正常に終了してます
 
