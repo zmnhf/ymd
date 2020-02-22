@@ -2,6 +2,8 @@ import os
 import re
 import configparser
 from time import time
+import subprocess
+import json
 
 import pandas as pd
 from joblib import Parallel, delayed
@@ -83,7 +85,7 @@ class SetChannel:
 
 		newcsv_df = pd.DataFrame(columns=["flag", "date", "id", "title"])
 		for i in self.playlists:
-			newcsv_df = pd.merge(newcsv_df, self.mk_playlist_df(i), how="outer")
+			newcsv_df = pd.merge(newcsv_df, self.mk_playlist_df_subp(i), how="outer") #######################
 		newcsv_df = newcsv_df.drop_duplicates(["id"]).sort_values(by=["date"]).reset_index(drop=True)
 
 		newcsv_df = pd.merge(newcsv_df.drop(columns=["flag"]), oldcsv_df.drop(columns=["title", "date"]), on="id", how="left")
@@ -91,7 +93,7 @@ class SetChannel:
 		print(newcsv_df)
 		return newcsv_df
 
-	def mk_playlist_df(self, playlisturl):
+	def mk_playlist_df(self, playlisturl): #v2020.01.24 ignoreerrors:Trueが効かない問題あり
 		"""playlistのurlからnewcsv_dfをreturn"""
 		opts = {
 			"ignoreerrors": True,
@@ -113,6 +115,33 @@ class SetChannel:
 			except Exception as e:
 				print(f"{e}\n{self.artist}のプレイリストurlが正しくないっぽいよ～404じゃないかな～")
 				return pd.DataFrame(columns=["flag", "date", "id", "title"])
+
+	def mk_playlist_df_subp(self, playlisturl): #ignoreerrors:Trueが効かないやつの対応
+		json_path = os.path.join(self.path, "playlist.json")
+		try:
+			os.remove(json_path)
+		except:
+			pass
+
+		command = ["youtube-dl", playlisturl, "-i", "-j", ">>", json_path]
+		a = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+#		if "ERROR:" in str(a.stdout):
+#			print(f"{str(a.stdout)}\n{self.artist}のプレイリスト{playlisturl}でエラーだよ～404じゃないかな～")
+#			return pd.DataFrame(columns=["flag", "date", "id", "title"])
+
+		with open(json_path, "r") as f:
+			j = [json.loads(i) for i in f]
+			flag_l = [False for i in j]
+			date_l = [i["upload_date"] for i in j]
+			id_l = [i["id"] for i in j]
+			if RM_EMOJI == True:
+				title_l = [remove_emoji(fix_title(i["title"])) for i in j]
+			else:
+				title_l = [fix_title(i["title"]) for i in j]
+			newcsv_df = pd.DataFrame(data={"flag": flag_l, "date":date_l, "id":id_l, "title":title_l})
+
+		os.remove(json_path)
+		return newcsv_df
 
 class SetVideo:
 	def __init__(self, Channel, trkn, row):
